@@ -103,7 +103,8 @@ class GPGraphOptimiser:
                  graph_generation_params: 'GraphGenerationParams',
                  metrics: List[MetricsEnum],
                  parameters: Optional[GPGraphOptimiserParameters] = None,
-                 log: Log = None, archive_type=None, use_stopping_criteria=True):
+                 log: Log = None, archive_type=None,
+                 use_stopping_criteria=True, stopping_after_n_generation=7):
 
         if not log:
             self.log = default_log(__name__)
@@ -132,8 +133,7 @@ class GPGraphOptimiser:
             self.requirements.pop_size = 10
 
         if use_stopping_criteria:
-            self.was_early_stopped = False
-            self.stopping_after_n_generation = 7
+            self.stopping_after_n_generation = stopping_after_n_generation
 
         self.population = None
         self.initial_graph = initial_graph
@@ -260,9 +260,6 @@ class GPGraphOptimiser:
 
             if pbar:
                 pbar.close()
-
-            if self.was_early_stopped:
-                self.log.info(f'GP_Optimiser: Early stopping criteria was triggered and generation finished')
 
             best = self.result_individual()
             self.log.info('Result:')
@@ -429,7 +426,7 @@ class GPGraphOptimiser:
 
     def _is_stopping_criteria_triggered(self):
         if self.num_of_gens_without_improvements == self.stopping_after_n_generation:
-            self.was_early_stopped = True
+            self.log.info(f'GP_Optimiser: Early stopping criteria was triggered and composing finished')
             return True
 
 
