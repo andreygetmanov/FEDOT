@@ -3,9 +3,9 @@ from copy import deepcopy
 from dataclasses import dataclass
 from functools import partial
 from typing import (Any, Callable, List, Optional, Tuple, Union)
-from tqdm import tqdm
 
 import numpy as np
+from tqdm import tqdm
 
 from fedot.core.composer.advisor import DefaultChangeAdvisor
 from fedot.core.composer.constraint import constraint_function
@@ -103,7 +103,7 @@ class GPGraphOptimiser:
                  graph_generation_params: 'GraphGenerationParams',
                  metrics: List[MetricsEnum],
                  parameters: Optional[GPGraphOptimiserParameters] = None,
-                 log: Log = None, archive_type=None):
+                 log: Log = None, archive_type=None, use_stopping_criteria=True):
 
         if not log:
             self.log = default_log(__name__)
@@ -130,6 +130,10 @@ class GPGraphOptimiser:
 
         if not self.requirements.pop_size:
             self.requirements.pop_size = 10
+
+        if use_stopping_criteria:
+            self.was_early_stopped = False
+            self.stopping_after_n_generation = 7
 
         self.population = None
         self.initial_graph = initial_graph
@@ -189,7 +193,8 @@ class GPGraphOptimiser:
             self.log_info_about_best()
 
             while t.is_time_limit_reached(self.generation_num) is False \
-                    and self.generation_num != self.requirements.num_of_generations - 1:
+                    and self.generation_num != self.requirements.num_of_generations - 1 \
+                    or self._is_stopping_criteria_triggered():
 
                 self.log.info(f'Generation num: {self.generation_num}')
 
@@ -236,7 +241,7 @@ class GPGraphOptimiser:
                 if not self.parameters.multi_objective and self.with_elitism:
                     self.population.append(self.prev_best)
 
-                if self.archive is not None:
+                elif self.archive is not None:
                     self.archive.update(self.population)
 
                 on_next_iteration_callback(self.population, self.archive)
@@ -252,8 +257,12 @@ class GPGraphOptimiser:
 
                 if pbar:
                     pbar.update(1)
+
             if pbar:
                 pbar.close()
+
+            if self.was_early_stopped:
+                self.log.info(f'GP_Optimiser: Early stopping criteria was triggered and generation finished')
 
             best = self.result_individual()
             self.log.info('Result:')
@@ -417,6 +426,11 @@ class GPGraphOptimiser:
                                                      timer=timer, is_multi_objective=self.parameters.multi_objective)
         individuals_set = correct_if_population_has_nans(evaluated_individuals, self.log)
         return individuals_set
+
+    def _is_stopping_criteria_triggered(self):
+        if self.num_of_gens_without_improvements == self.stopping_after_n_generation:
+            self.was_early_stopped = True
+            return True
 
 
 @dataclass
