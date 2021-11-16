@@ -175,7 +175,7 @@ class Data:
                         label: str = 'label',
                         task: Task = Task(TaskTypesEnum.classification),
                         data_type: DataTypesEnum = DataTypesEnum.table,
-                        export_to_meta=False) -> 'InputData':
+                        export_to_meta=False, is_multilabel=False) -> 'InputData':
         """
         Generates InputData from the set of JSON files with different fields
         :param files_path: path the folder with jsons
@@ -184,6 +184,7 @@ class Data:
         :param task: task to solve
         :param data_type: data type in fields (as well as type for obtained InputData)
         :param export_to_meta: combine extracted field and save to CSV
+        :param is_multilabel: if True, creates multilabel target
         :return: combined dataset
         """
 
@@ -205,7 +206,22 @@ class Data:
                 val = [v[0] for v in val]
             features = np.array(val)
 
-        target = np.array(df_data[label])
+        if is_multilabel:
+            target = df_data[label]
+            classes = set()
+            for el in target:
+                for label in el:
+                    classes.add(label)
+            count_classes = list(sorted(classes))
+            Y = np.zeros((len(features), len(count_classes)))
+
+            for i in range(len(target)):
+                for el in target[i]:
+                    Y[i][count_classes.index(el)] = 1
+            target = Y
+        else:
+            target = np.array(df_data[label])
+
         idx = [index for index in range(len(target))]
 
         return InputData(idx=idx, features=features,
